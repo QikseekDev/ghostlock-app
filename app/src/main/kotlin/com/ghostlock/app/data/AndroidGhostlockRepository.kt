@@ -92,6 +92,7 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
     private var safeModeEnabled = false
     private var forceAttackTest = false
     private var shizukuEnabled = false
+    private var autoRootEnabled = false
     /** True once the user flipped the toggle; only then does it override the
      * profile suggestion (PROFILE-SUGGEST-01). */
     private var shizukuPreferenceSet = false
@@ -102,6 +103,7 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
         buildCpuPairs()
         restoreCpuPair()
         restoreShizukuPreference()
+        restoreAutoRootPreference()
         restoreForceAttackTest()
         dropLegacyOffsetsCache()
         migrateLegacyOffsetsStore()
@@ -199,6 +201,14 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
                 putBoolean("shizuku_explicit", true)
             }
         if (enabled) shizukuRunner.requestPermission()
+    }
+
+    override fun autoRootEnabled(): Boolean = autoRootEnabled
+
+    override fun setAutoRootEnabled(enabled: Boolean) {
+        autoRootEnabled = enabled
+        appContext.getSharedPreferences("ghostlock_prefs", Context.MODE_PRIVATE)
+            .edit { putBoolean("autoroot_on_startup", enabled) }
     }
 
     override fun selectedManagerPackage(): String? =
@@ -969,6 +979,11 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
         val prefs = appContext.getSharedPreferences("ghostlock_prefs", Context.MODE_PRIVATE)
         shizukuPreferenceSet = prefs.getBoolean("shizuku_explicit", false)
         shizukuEnabled = prefs.getBoolean("shizuku_enabled", false)
+    }
+
+    private fun restoreAutoRootPreference() {
+        autoRootEnabled = appContext.getSharedPreferences("ghostlock_prefs", Context.MODE_PRIVATE)
+            .getBoolean("autoroot_on_startup", false)
     }
 
     private fun restoreForceAttackTest() {

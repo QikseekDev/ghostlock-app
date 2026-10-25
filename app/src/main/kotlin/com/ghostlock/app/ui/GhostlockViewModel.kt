@@ -58,7 +58,9 @@ class GhostlockViewModel(
     private val repository: GhostlockRepository,
 ) : ViewModel() {
     private val effectChannel = Channel<GhostlockEffect>(Channel.BUFFERED)
-    private val mutableState = MutableStateFlow(GhostlockUiState())
+    private val mutableState = MutableStateFlow(
+        GhostlockUiState(autoRootEnabled = repository.autoRootEnabled()),
+    )
     private var initialized = false
     private var running = false
     private val loadKernelSnapshot = LoadKernelSnapshotUseCase(repository)
@@ -93,6 +95,7 @@ class GhostlockViewModel(
             refreshSnapshot()
             applyRecommendedShizuku()
             maybeSuggestShizukuForW3()
+            if (repository.autoRootEnabled() && !state.value.dialogVisible) runExploit()
         }
     }
 
@@ -842,6 +845,11 @@ class GhostlockViewModel(
         viewModelScope.launch { refreshSnapshot() }
     }
 
+    fun toggleAutoRoot(enabled: Boolean) {
+        repository.setAutoRootEnabled(enabled)
+        mutableState.update { it.copy(autoRootEnabled = enabled) }
+    }
+
     fun onOpenManagerPicker() {
         mutableState.update { it.copy(managerPickerVisible = true) }
         viewModelScope.launch {
@@ -1085,6 +1093,7 @@ class GhostlockViewModel(
                 safeModeEnabled = snapshot.safeModeEnabled,
                 forceAttackTestEnabled = snapshot.forceAttackTest,
                 shizukuEnabled = snapshot.shizukuEnabled,
+                autoRootEnabled = repository.autoRootEnabled(),
                 shizukuStatus = snapshot.shizukuStatus,
                 profileInvalidPaths = loaded?.invalidPaths ?: emptySet(),
                 executionHasProfile = loaded?.hasProfile ?: false,

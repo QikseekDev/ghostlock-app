@@ -21,6 +21,8 @@ interface GhostlockRepository {
     fun setForceAttackTest(enabled: Boolean)
 
     fun setShizukuEnabled(enabled: Boolean)
+    fun autoRootEnabled(): Boolean
+    fun setAutoRootEnabled(enabled: Boolean)
 
     /** User-chosen manager package, or null for auto-detect. */
     fun selectedManagerPackage(): String?
