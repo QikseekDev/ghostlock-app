@@ -205,7 +205,14 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
         if (enabled) shizukuRunner.requestPermission()
     }
 
-    override fun autoRootEnabled(): Boolean = autoRootEnabled
+    override fun autoRootEnabled(): Boolean {
+        val component = ComponentName(appContext, com.ghostlock.app.boot.BootCompletedReceiver::class.java)
+        return when (appContext.packageManager.getComponentEnabledSetting(component)) {
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED -> false
+            else -> autoRootEnabled
+        }
+    }
 
     override fun setAutoRootEnabled(enabled: Boolean) {
         autoRootEnabled = enabled
