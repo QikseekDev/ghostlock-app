@@ -65,13 +65,15 @@ class BootCompletedReceiver : BroadcastReceiver() {
     private suspend fun waitForShizuku(repository: GhostlockRepository): Boolean {
         var attempt = 0
         val ready: Boolean = withTimeoutOrNull<Boolean>(SHIZUKU_TIMEOUT_MS) {
-            while (true) {
+            var available = false
+            while (!available) {
                 val status = repository.snapshot().shizukuStatus
                 attempt++
                 Log.i(TAG, "boot: Shizuku check $attempt status=$status")
-                if (status == ShizukuStatus.READY) return@withTimeoutOrNull true
-                delay(SHIZUKU_POLL_INTERVAL_MS)
+                available = status == ShizukuStatus.READY
+                if (!available) delay(SHIZUKU_POLL_INTERVAL_MS)
             }
+            available
         } ?: false
         if (!ready) Log.i(TAG, "boot: Shizuku timeout after ${SHIZUKU_TIMEOUT_MS}ms")
         return ready
