@@ -619,7 +619,14 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
             val binary = File(appContext.applicationInfo.nativeLibraryDir, binaryName)
             require(binary.isFile) { "missing native binary: ${binary.absolutePath}" }
             val ksud = resolveKsudPath(onLog)
-            if (ksud != null) onLog("<k> ksud ready: ${ksud.absolutePath}") else onLog("<k> warning: ksud not found")
+            val selectedManager = selectedManagerPackage()
+            if (ksud != null) {
+                onLog("<k> ksud ready: ${ksud.absolutePath}")
+            } else if (selectedManager != null) {
+                error("selected manager has no usable libksud.so: $selectedManager")
+            } else {
+                onLog("<k> warning: ksud not found")
+            }
             // U01-S14: a per-run KernelSU log path so a previous run's markers
             // can never satisfy the handoff probe; passed to the native process.
             val ksuLog = File(workDir, ksuLogName(System.currentTimeMillis()))
