@@ -48,6 +48,7 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
         const val ExtractBinaryName = "libextract.so"
         const val DefaultDebugLocation = "Download/ghostlock-debug-log"
         const val PrefForceAttackTest = "force_attack_test"
+        const val PrefAutoSoftRestart = "auto_soft_restart"
         const val PrefDebugExportEnabled = "debug_export_enabled"
         const val PrefDebugExportLocation = "debug_export_location"
         const val PrefDebugKernelLogEnabled = "debug_kernel_log_enabled"
@@ -192,6 +193,13 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
     override fun setForceAttackTest(enabled: Boolean) {
         forceAttackTest = enabled
         preferences.edit { putBoolean(PrefForceAttackTest, enabled) }
+    }
+
+    override fun autoSoftRestartEnabled(): Boolean =
+        preferences.getBoolean(PrefAutoSoftRestart, true)
+
+    override fun setAutoSoftRestartEnabled(enabled: Boolean) {
+        preferences.edit { putBoolean(PrefAutoSoftRestart, enabled) }
     }
 
     override fun setShizukuEnabled(enabled: Boolean) {
@@ -431,13 +439,15 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
         }
     }
 
-    override suspend fun runExploit(pair: CpuPair, onLog: (String) -> Unit): Int =
-        withDebugAttackLog("direct", onLog) { archivedLog, debugDir, writeSidecar ->
+    override suspend fun runExploit(pair: CpuPair, onLog: (String) -> Unit): Int {
+        val code = withDebugAttackLog("direct", onLog) { archivedLog, debugDir, writeSidecar ->
             runExploitBinary(pair, "libghostlock.so", archivedLog, debugDir, writeSidecar)
         }
+        return autoSoftRestartIfCompleted(code, safeModeEnabled, onLog)
+    }
 
     override suspend fun runExploitWithShizuku(pair: CpuPair, onLog: (String) -> Unit): Int {
-        return withDebugAttackLog("shizuku", onLog) { archivedLog, debugDir, writeSidecar ->
+        val code = withDebugAttackLog("shizuku", onLog) { archivedLog, debugDir, writeSidecar ->
             archivedLog("<s> resolving profile")
             val release = System.getProperty("os.version", "").orEmpty()
             val config = profileController.load(release, pair)
@@ -480,6 +490,29 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
                 }
             }
         }
+        return autoSoftRestartIfCompleted(code, safeModeEnabled, onLog)
+    }
+
+    private suspend fun autoSoftRestartIfCompleted(
+        code: Int,
+        safeMode: Boolean,
+        onLog: (String) -> Unit,
+    ): Int {
+        if (code != 0 || safeMode || !autoSoftRestartEnabled()) return code
+        onLog("<b> root completed; requesting automatic soft restart")
+        val process = runCatching {
+            ProcessBuilder("su", "-c", "reboot")
+                .redirectErrorStream(true)
+                .start()
+        }.getOrElse { error ->
+            onLog("<s> soft restart request failed: ${error.message}")
+            return code
+        }
+        val finished = runInterruptible { process.waitFor(5, TimeUnit.SECONDS) }
+        if (finished && process.exitValue() != 0) {
+            onLog("<s> soft restart command exited ${process.exitValue()}")
+        }
+        return code
     }
 
     /* --- attack step status ------------------------------------------------

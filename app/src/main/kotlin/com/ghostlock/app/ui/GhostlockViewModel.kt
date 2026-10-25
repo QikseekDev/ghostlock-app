@@ -59,7 +59,10 @@ class GhostlockViewModel(
 ) : ViewModel() {
     private val effectChannel = Channel<GhostlockEffect>(Channel.BUFFERED)
     private val mutableState = MutableStateFlow(
-        GhostlockUiState(autoRootEnabled = repository.autoRootEnabled()),
+        GhostlockUiState(
+            autoRootEnabled = repository.autoRootEnabled(),
+            autoSoftRestartEnabled = repository.autoSoftRestartEnabled(),
+        ),
     )
     private var initialized = false
     private var running = false
@@ -833,6 +836,11 @@ class GhostlockViewModel(
         mutableState.update { it.copy(forceAttackTestEnabled = enabled) }
     }
 
+    fun toggleAutoSoftRestart(enabled: Boolean) {
+        repository.setAutoSoftRestartEnabled(enabled)
+        mutableState.update { it.copy(autoSoftRestartEnabled = enabled) }
+    }
+
     fun toggleShizuku(enabled: Boolean) {
         repository.setShizukuEnabled(enabled)
         mutableState.update { it.copy(shizukuEnabled = enabled) }
@@ -1091,6 +1099,7 @@ class GhostlockViewModel(
                 cpuPairIndex = snapshot.selectedCpuPair,
                 safeModeEnabled = snapshot.safeModeEnabled,
                 forceAttackTestEnabled = snapshot.forceAttackTest,
+                autoSoftRestartEnabled = repository.autoSoftRestartEnabled(),
                 shizukuEnabled = snapshot.shizukuEnabled,
                 autoRootEnabled = repository.autoRootEnabled(),
                 shizukuStatus = snapshot.shizukuStatus,
