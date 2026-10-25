@@ -85,7 +85,7 @@
     <string name="shizuku_label">Run via Shizuku</string>
     <string name="shizuku_summary">Skip Seccomp bypass</string>
     <string name="autoroot_label">Autoroot on startup</string>
-    <string name="autoroot_summary">Run automatically when the app starts</string>
+    <string name="autoroot_summary">Run automatically when the app starts or the system boots</string>
     <string name="shizuku_recommended_hint">This kernel recommends running via Shizuku</string>
     <string name="shizuku_status_not_running">Start Shizuku, then return here</string>
     <string name="shizuku_status_permission_required">Grant Shizuku access when asked</string>
