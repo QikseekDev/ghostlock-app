@@ -11,6 +11,7 @@ import androidx.core.content.edit
 import androidx.core.net.toUri
 import com.ghostlock.app.BuildConfig
 import com.ghostlock.app.BuildInfo
+import com.ghostlock.app.boot.AutorootBootGuard
 import com.ghostlock.app.data.ManagerScanner
 import com.ghostlock.app.domain.model.CpuPair
 import com.ghostlock.app.domain.model.DebugSettings
@@ -224,6 +225,7 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
 
     override fun setAutoRootEnabled(enabled: Boolean) {
         autoRootEnabled = enabled
+        if (enabled) AutorootBootGuard.reset(appContext)
         appContext.packageManager.setComponentEnabledSetting(
             ComponentName(appContext, com.ghostlock.app.boot.BootCompletedReceiver::class.java),
             if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED

@@ -8,12 +8,28 @@ import android.content.pm.PackageManager
 import android.os.PowerManager
 import android.util.Log
 import com.ghostlock.app.GhostlockApplication
+import com.ghostlock.app.domain.model.ShizukuStatus
+import com.ghostlock.app.domain.repository.GhostlockRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Runs autoroot directly from the boot receiver, matching DirtyFrag's model. */
 class BootCompletedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (!isBootAction(intent.action)) return
+        when (AutorootBootGuard.beginBoot(context)) {
+            AutorootBootGuard.Decision.DUPLICATE -> {
+                Log.i(TAG, "boot: duplicate broadcast ignored")
+                return
+            }
+            AutorootBootGuard.Decision.TRIPPED -> {
+                Log.i(TAG, "boot: one unconfirmed boot; disabling autoroot")
+                disableAutorun(context)
+                return
+            }
+            AutorootBootGuard.Decision.RUN -> Unit
+        }
         val deContext = context.createDeviceProtectedStorageContext()
         val power = context.getSystemService(PowerManager::class.java) ?: return
         val wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$TAG:boot")
@@ -28,15 +44,14 @@ class BootCompletedReceiver : BroadcastReceiver() {
                 val pair = snapshot.cpuPairs.getOrNull(snapshot.selectedCpuPair)
                 if (!snapshot.kernelSupported || pair == null) return@Thread
                 val code = runBlocking {
-                    if (snapshot.shizukuEnabled) {
-                        waitForShizuku(repository)
-                        repository.runExploitWithShizuku(pair) { line -> Log.i(TAG, line.trim()) }
-                    } else {
-                        repository.runExploit(pair) { line -> Log.i(TAG, line.trim()) }
-                    }
+                    val ready = !snapshot.shizukuEnabled || waitForShizuku(repository)
+                    if (!ready) SHIZUKU_TIMEOUT_EXIT
+                    else if (snapshot.shizukuEnabled) repository.runExploitWithShizuku(pair) { line -> Log.i(TAG, line.trim()) }
+                    else repository.runExploit(pair) { line -> Log.i(TAG, line.trim()) }
                 }
                 Log.i(TAG, "boot: exploit rc=$code")
                 ok = code == 0
+                if (ok) AutorootBootGuard.confirmBoot(context)
             } catch (error: Exception) {
                 Log.e(TAG, "boot: exploit exception", error)
             } finally {
@@ -47,15 +62,19 @@ class BootCompletedReceiver : BroadcastReceiver() {
         }.start()
     }
 
-    private suspend fun waitForShizuku(repository: com.ghostlock.app.domain.repository.GhostlockRepository) {
+    private suspend fun waitForShizuku(repository: GhostlockRepository): Boolean {
         var attempt = 0
-        while (true) {
-            val status = repository.snapshot().shizukuStatus
-            attempt++
-            Log.i(TAG, "boot: Shizuku check $attempt status=$status")
-            if (status == com.ghostlock.app.domain.model.ShizukuStatus.READY) return
-            Thread.sleep(SHIZUKU_POLL_INTERVAL_MS)
-        }
+        val ready = withTimeoutOrNull(SHIZUKU_TIMEOUT_MS) {
+            while (true) {
+                val status = repository.snapshot().shizukuStatus
+                attempt++
+                Log.i(TAG, "boot: Shizuku check $attempt status=$status")
+                if (status == ShizukuStatus.READY) return@withTimeoutOrNull true
+                delay(SHIZUKU_POLL_INTERVAL_MS)
+            }
+        } ?: false
+        if (!ready) Log.i(TAG, "boot: Shizuku timeout after ${SHIZUKU_TIMEOUT_MS}ms")
+        return ready
     }
 
     private fun disableAutorun(context: Context) {
@@ -70,6 +89,8 @@ class BootCompletedReceiver : BroadcastReceiver() {
     private companion object {
         const val TAG = "GhostLock"
         const val SHIZUKU_POLL_INTERVAL_MS = 2_000L
+        const val SHIZUKU_TIMEOUT_MS = 60_000L
+        const val SHIZUKU_TIMEOUT_EXIT = 124
     }
 }
 
