@@ -29,8 +29,8 @@ class BootCompletedReceiver : BroadcastReceiver() {
                 if (!snapshot.kernelSupported || pair == null) return@Thread
                 val code = runBlocking {
                     if (snapshot.shizukuEnabled) {
-                        if (snapshot.shizukuStatus != com.ghostlock.app.domain.model.ShizukuStatus.READY) 1
-                        else repository.runExploitWithShizuku(pair) { line -> Log.i(TAG, line.trim()) }
+                        waitForShizuku(repository)
+                        repository.runExploitWithShizuku(pair) { line -> Log.i(TAG, line.trim()) }
                     } else {
                         repository.runExploit(pair) { line -> Log.i(TAG, line.trim()) }
                     }
@@ -47,6 +47,17 @@ class BootCompletedReceiver : BroadcastReceiver() {
         }.start()
     }
 
+    private suspend fun waitForShizuku(repository: com.ghostlock.app.domain.repository.GhostlockRepository) {
+        var attempt = 0
+        while (true) {
+            val status = repository.snapshot().shizukuStatus
+            attempt++
+            Log.i(TAG, "boot: Shizuku check $attempt status=$status")
+            if (status == com.ghostlock.app.domain.model.ShizukuStatus.READY) return
+            Thread.sleep(SHIZUKU_POLL_INTERVAL_MS)
+        }
+    }
+
     private fun disableAutorun(context: Context) {
         Log.i(TAG, "boot: failed - disabling autorun interlock")
         context.packageManager.setComponentEnabledSetting(
@@ -58,6 +69,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
 
     private companion object {
         const val TAG = "GhostLock"
+        const val SHIZUKU_POLL_INTERVAL_MS = 2_000L
     }
 }
 
