@@ -2,7 +2,9 @@ package com.ghostlock.app.data
 
 import android.annotation.SuppressLint
 import android.content.ContentValues
+import android.content.ComponentName
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.MediaStore
 import androidx.core.content.edit
@@ -207,6 +209,12 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
 
     override fun setAutoRootEnabled(enabled: Boolean) {
         autoRootEnabled = enabled
+        appContext.packageManager.setComponentEnabledSetting(
+            ComponentName(appContext, com.ghostlock.app.boot.BootCompletedReceiver::class.java),
+            if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+            else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            PackageManager.DONT_KILL_APP,
+        )
         appContext.getSharedPreferences("ghostlock_prefs", Context.MODE_PRIVATE)
             .edit { putBoolean("autoroot_on_startup", enabled) }
     }
@@ -982,8 +990,19 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
     }
 
     private fun restoreAutoRootPreference() {
-        autoRootEnabled = appContext.getSharedPreferences("ghostlock_prefs", Context.MODE_PRIVATE)
+        val component = ComponentName(appContext, com.ghostlock.app.boot.BootCompletedReceiver::class.java)
+        val packageState = appContext.packageManager.getComponentEnabledSetting(component)
+        val legacy = appContext.getSharedPreferences("ghostlock_prefs", Context.MODE_PRIVATE)
             .getBoolean("autoroot_on_startup", false)
+        autoRootEnabled = packageState == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
+            (packageState == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && legacy)
+        if (autoRootEnabled && packageState != PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
+            appContext.packageManager.setComponentEnabledSetting(
+                component,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP,
+            )
+        }
     }
 
     private fun restoreForceAttackTest() {

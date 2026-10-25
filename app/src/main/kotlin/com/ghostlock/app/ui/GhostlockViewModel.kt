@@ -95,7 +95,6 @@ class GhostlockViewModel(
             refreshSnapshot()
             applyRecommendedShizuku()
             maybeSuggestShizukuForW3()
-            if (repository.autoRootEnabled() && !state.value.dialogVisible) runExploit()
         }
     }
 
